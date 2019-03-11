@@ -8,8 +8,8 @@ const {
 } = require('graphql');
 
 // Define Movie Type
-movieTypes = new GraphQLObjectType({
-    name: 'Movierand',
+movie = new GraphQLObjectType({
+    name: 'Movie',
     fields: {
         _id: { type: GraphQLID },
         link: { type: GraphQLString },
@@ -21,22 +21,13 @@ movieTypes = new GraphQLObjectType({
         title: { type: GraphQLString },
         votes: { type: GraphQLFloat},
         year: { type: GraphQLInt },
-
-    }
-});
-
-movieType = new GraphQLObjectType({
-    name: 'Movie',
-    fields: {
-        id: { type: GraphQLID },
-        name: { type: GraphQLString },
-        year: { type: GraphQLInt },
-        directorId: { type: GraphQLID }
+        date:{type: GraphQLString},
+        review:{type:GraphQLString}
 
     }
 });
 
 
 
-exports.movieTypes = movieTypes;
-exports.movieType = movieType;
+
+exports.movie = movie;

@@ -1,3 +1,4 @@
+require('dotenv').config()
 const Express = require("express");
 const BodyParser = require("body-parser");
 const MongoClient = require("mongodb").MongoClient;
@@ -7,17 +8,19 @@ const graphqlHTTP = require('express-graphql');
 const { GraphQLSchema,
     GraphQLObjectType,
     GraphQLString,
-    GraphQLInt
+    GraphQLInt,
+    GraphQLID,
+    GraphQLList,
+    GraphQLDate
 } = require('graphql');
 const _ = require('lodash');
-const {movieType} = require('./src/types.js');
-let {movies,directors} = require('./src/data.js');
+const movie = require('./src/types.js').movie;
 
-const CONNECTION_URL = "mongodb+srv://Norodio:xSGhUr0WIhRjO9nB@myawesomecluster-y47hi.mongodb.net/test?retryWrites=true";
+const CONNECTION_URL = process.env.DB_CONNECTION_URL;
 const DATABASE_NAME = "denzel";
 const imdb = require('./src/imdb');
 const DENZEL_IMDB_ID = 'nm0000243';
-const PORT = 9292;
+const PORT = process.env.PORT;
 var app = Express();
 
 
@@ -48,30 +51,78 @@ const queryType = new GraphQLObjectType({
                 return "Hello World";
             }
         },
+        populate:{
+          type: GraphQLString,
+          resolve: async () => {
+            const movies = await imdb(DENZEL_IMDB_ID);
+            collection.insertMany(movies, (error, result) => {
+                if(error) {
+                    return response.status(500).send(error);
+                }
 
-        movies: {
-            type: movieTypes,
-            resolve: function (source, args) {
-              return collection.aggregate([ {$match : {metascore : {$gt:70} }},{ $sample: { size: 1 }}]).toArray((error, result) => {
-                    if(error) {
-                        return response.status(500).send(error);
-                    }
-                    console.log(result[0]);
-                    return _.find(result,{id: result[0].id});
-                });;
-            }
+            });
+            return "done";
+          }
         },
 
-        movie: {
-            type: movieTypes,
-            args: {
-                id: { type: GraphQLInt }
-            },
-            resolve: function (source, args) {
-              console.log(_.find(movies, { id: args.id }));
-                return _.find(movies, { id: args.id });
-            }
-}
+        randomMovie:{
+          type: movie,
+          resolve: async () => {
+                  const res = await collection.aggregate([{ $match: { "metascore": {$gt:70}}}, { $sample: { size: 1 }}]).toArray()
+                  return res[0]
+          },
+        },
+
+        findMovie:{
+          type: movie,
+          args:{
+            id: { type: GraphQLString }
+          },
+          resolve: async (source, args) => {
+            let res =  await collection.findOne({id : args.id});
+
+            return res;
+          }
+        },
+        search:{
+          type: GraphQLList(movie),
+          args:{
+            limit: {type : GraphQLInt},
+            metascore: {type : GraphQLInt}
+          },
+          resolve : async (source, args) => {
+                let metascore;
+                let limit;
+                if(args.limit == undefined) {
+                  limit = 5
+                } else {
+                  limit = args.limit;
+                }
+                if(args.metascore == undefined) {
+                  metascore = 0
+                }else {
+                  metascore = args.metascore;
+                }
+                const res = await collection.aggregate([{$match:{"metascore": {$gte:Number(metascore)}}}, {$limit:Number(limit)}, {$sort:{"metascore":-1}}]).toArray()
+                return res
+              }
+        },
+        review:{
+          type:GraphQLString,
+          args:{
+            id: {type : GraphQLString},
+            date:{type : GraphQLString},
+            review:{type : GraphQLString}
+          },
+          resolve : async (source,args) =>{
+            collection.updateOne({ "id": args.id },{$set : {"date": args.date , "review": args.review}}, (error, result) => {
+              if(error) {
+                  return response.status(500).send(error);
+              }
+          });
+          return "done";
+          }
+        }
 
     }
 });
